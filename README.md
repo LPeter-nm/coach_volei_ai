@@ -22,9 +22,7 @@ Supabase (banco da Evolution API)
 ## Estrutura do projeto
 
 - `persona.py` — define quem é a IA (nome, tom, escopo, regras).
-- `chat_cli.py` — script de terminal pra testar a conversa isolada, sem
-  servidor nenhum envolvido. Bom pra validar a persona rapidamente.
-- `main.py` — backend FastAPI com dois endpoints:
+- `main.py` — backend FastAPI com três endpoints:
   - `/chat` — pra testes manuais (via `/docs` no navegador).
   - `/webhook` — recebe mensagens da Evolution API e responde no WhatsApp.
   - `/health` — checagem simples de que o serviço está no ar.
@@ -46,11 +44,7 @@ Supabase (banco da Evolution API)
    ```
 3. Copie `.env.example` para `.env` e preencha pelo menos `GEMINI_API_KEY`
    (pegue em https://aistudio.google.com/app/apikey).
-4. Pra testar só a conversa no terminal:
-   ```bash
-   python chat_cli.py
-   ```
-5. Pra testar o backend completo (como ele roda em produção):
+4. Pra testar o backend completo (como ele roda em produção):
    ```bash
    uvicorn main:app --reload
    ```
