@@ -65,8 +65,8 @@ def perguntar_ao_coach(mensagem: str, previous_interaction_id: str | None):
         input=mensagem,
         previous_interaction_id=previous_interaction_id,
     )
-    resposta = interaction.steps[-1].content[0].text
-    return resposta, interaction.id
+    resposta = interaction.steps[-1].content[0].text # type: ignore
+    return resposta, interaction.id # type: ignore
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -88,7 +88,7 @@ def chat(request: ChatRequest):
         # detalhes internos (como pedacos de stack trace) pra fora.
         raise HTTPException(status_code=502, detail="Erro ao consultar o modelo de IA.")
 
-    return ChatResponse(resposta=resposta, interaction_id=interaction_id)
+    return ChatResponse(resposta=resposta, interaction_id=interaction_id) # type: ignore
 
 
 @app.post("/webhook")
@@ -144,7 +144,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     except Exception:
         return {"status": "erro", "motivo": "falha ao consultar a IA"}
 
-    conversas_por_numero[numero] = interaction_id
+    conversas_por_numero[numero] = interaction_id # type: ignore
 
     # Agora enviamos a resposta de volta, chamando a propria Evolution
     # API - diferente do /chat, aqui ninguem fica esperando a resposta
@@ -153,7 +153,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     async with httpx.AsyncClient(timeout=30) as http_client:
         await http_client.post(
             url_envio,
-            headers={"apikey": EVOLUTION_API_KEY},
+            headers={"apikey": EVOLUTION_API_KEY}, # type: ignore
             json={"number": numero, "text": resposta_texto},
         )
 
