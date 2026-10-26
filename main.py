@@ -55,18 +55,41 @@ class ChatResponse(BaseModel):
     interaction_id: str
 
 
-def perguntar_ao_coach(mensagem: str, previous_interaction_id: str | None):
-    """Logica compartilhada: manda uma mensagem pro Gemini com a persona
-    do Coach Volei e devolve (texto_da_resposta, id_da_interacao).
+def perguntar_ao_coach(conteudo, previous_interaction_id: str | None):
+    """Logica compartilhada: manda algo pro Gemini com a persona do Coach
+    Volei e devolve (texto_da_resposta, id_da_interacao). "conteudo" pode
+    ser uma string simples (so' texto) ou uma lista de partes multimodais,
+    ex: [{"type": "text", "text": "..."}, {"type": "image", "data": "...", "mime_type": "..."}].
     Usada tanto pelo /chat (teste manual) quanto pelo /webhook (WhatsApp)."""
     interaction = client.interactions.create(
         model=MODEL,
         system_instruction=SYSTEM_PROMPT,
-        input=mensagem,
+        input=conteudo,
         previous_interaction_id=previous_interaction_id,
     )
     resposta = interaction.steps[-1].content[0].text
     return resposta, interaction.id
+
+
+async def baixar_midia_evolution(message_key: dict):
+    """Baixa o conteudo (base64) de uma midia (imagem/audio) de uma
+    mensagem, pedindo pra propria Evolution API - o webhook nunca manda
+    o arquivo em si, so' uma referencia a ele. Devolve (base64, mimetype)
+    ou (None, None) se falhar."""
+    url = f"{EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/{EVOLUTION_INSTANCE}"
+    try:
+        async with httpx.AsyncClient(timeout=30) as http_client:
+            resposta = await http_client.post(
+                url,
+                headers={"apikey": EVOLUTION_API_KEY},
+                json={"message": {"key": message_key}},
+            )
+        resposta.raise_for_status()
+        corpo = resposta.json()
+        return corpo.get("base64"), corpo.get("mimetype")
+    except Exception as e:
+        print(f"[download midia] falhou: {e}", flush=True)
+        return None, None
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -115,16 +138,18 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     if data.get("key", {}).get("fromMe"):
         return {"status": "ignorado", "motivo": "mensagem propria"}
 
+    mensagem = data.get("message", {})
+
     # O texto pode vir em lugares diferentes dependendo do tipo de
     # mensagem (conversa simples vs mensagem com preview de link etc).
-    mensagem_texto = (
-        data.get("message", {}).get("conversation")
-        or data.get("message", {}).get("extendedTextMessage", {}).get("text")
-    )
-    if not mensagem_texto:
-        return {"status": "ignorado", "motivo": "sem texto (ex: audio ou imagem)"}
+    mensagem_texto = mensagem.get("conversation") or mensagem.get("extendedTextMessage", {}).get("text")
+    imagem_info = mensagem.get("imageMessage")
+    audio_info = mensagem.get("audioMessage")
 
-    if len(mensagem_texto) > MAX_CARACTERES:
+    if not mensagem_texto and not imagem_info and not audio_info:
+        return {"status": "ignorado", "motivo": "tipo de mensagem nao suportado (ex: video, figurinha, documento)"}
+
+    if mensagem_texto and len(mensagem_texto) > MAX_CARACTERES:
         mensagem_texto = mensagem_texto[:MAX_CARACTERES]
 
     # O WhatsApp as vezes manda um "@lid" (Linked ID, um identificador
@@ -147,8 +172,31 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
 
     previous_id = conversas_por_numero.get(numero)
 
+    # Monta o conteudo que vai pra IA: texto puro (caso mais comum), ou
+    # uma lista com texto + midia (imagem/audio), dependendo do que chegou.
+    if imagem_info or audio_info:
+        info_midia = imagem_info or audio_info
+        base64_midia, mimetype = await baixar_midia_evolution(chave)
+        if not base64_midia:
+            return {"status": "erro", "motivo": "falha ao baixar a midia da Evolution API"}
+
+        tipo = "image" if imagem_info else "audio"
+        # Legenda da imagem (se a pessoa escreveu algo junto) ou um
+        # texto padrao, caso tenha mandado so' a midia, sem nada escrito.
+        texto_acompanhando = info_midia.get("caption") or (
+            "Descreva o que ha' nessa imagem, relacionando com volei se fizer sentido."
+            if tipo == "image"
+            else "Ouca esse audio e responda a pergunta, se for sobre volei."
+        )
+        conteudo = [
+            {"type": "text", "text": texto_acompanhando},
+            {"type": tipo, "data": base64_midia, "mime_type": mimetype},
+        ]
+    else:
+        conteudo = mensagem_texto
+
     try:
-        resposta_texto, interaction_id = perguntar_ao_coach(mensagem_texto, previous_id)
+        resposta_texto, interaction_id = perguntar_ao_coach(conteudo, previous_id)
     except Exception:
         return {"status": "erro", "motivo": "falha ao consultar a IA"}
 
