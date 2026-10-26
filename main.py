@@ -65,8 +65,8 @@ def perguntar_ao_coach(mensagem: str, previous_interaction_id: str | None):
         input=mensagem,
         previous_interaction_id=previous_interaction_id,
     )
-    resposta = interaction.steps[-1].content[0].text # type: ignore
-    return resposta, interaction.id # type: ignore
+    resposta = interaction.steps[-1].content[0].text
+    return resposta, interaction.id
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -88,7 +88,7 @@ def chat(request: ChatRequest):
         # detalhes internos (como pedacos de stack trace) pra fora.
         raise HTTPException(status_code=502, detail="Erro ao consultar o modelo de IA.")
 
-    return ChatResponse(resposta=resposta, interaction_id=interaction_id) # type: ignore
+    return ChatResponse(resposta=resposta, interaction_id=interaction_id)
 
 
 @app.post("/webhook")
@@ -144,18 +144,25 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     except Exception:
         return {"status": "erro", "motivo": "falha ao consultar a IA"}
 
-    conversas_por_numero[numero] = interaction_id # type: ignore
+    conversas_por_numero[numero] = interaction_id
 
     # Agora enviamos a resposta de volta, chamando a propria Evolution
     # API - diferente do /chat, aqui ninguem fica esperando a resposta
     # no mesmo lugar que perguntou; precisamos "ligar de volta".
     url_envio = f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-    async with httpx.AsyncClient(timeout=30) as http_client:
-        await http_client.post(
-            url_envio,
-            headers={"apikey": EVOLUTION_API_KEY}, # type: ignore
-            json={"number": numero, "text": resposta_texto},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30) as http_client:
+            resposta_envio = await http_client.post(
+                url_envio,
+                headers={"apikey": EVOLUTION_API_KEY},
+                json={"number": numero, "text": resposta_texto},
+            )
+        # Log temporario de debug: aparece nos logs do Render. Ajuda a ver
+        # se a Evolution API aceitou o envio (2xx) ou recusou (4xx/5xx) e
+        # por qual motivo, em vez de ficar as cegas.
+        print(f"[envio Evolution] status={resposta_envio.status_code} resposta={resposta_envio.text}")
+    except Exception as e:
+        print(f"[envio Evolution] falhou ao chamar a URL: {e}")
 
     return {"status": "ok"}
 
