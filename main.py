@@ -259,6 +259,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
         # se a Evolution API aceitou o envio (2xx) ou recusou (4xx/5xx) e
         # por qual motivo, em vez de ficar as cegas.
         print(f"[envio Evolution] status={resposta_envio.status_code} resposta={resposta_envio.text}", flush=True)
+        print(f"\n{resposta_envio}", flush=True)
     except Exception as e:
         print(f"[envio Evolution] falhou ao chamar a URL: {e}", flush=True)
 
