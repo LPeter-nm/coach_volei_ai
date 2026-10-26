@@ -104,10 +104,6 @@ Supabase (banco da Evolution API)
 - Plano gratuito do Render "dorme" após inatividade; a primeira mensagem
   depois disso demora mais pra responder.
 
-## Próximos passos
-
-- Repetir esse mesmo roteiro, já com o tema e a persona reais do Contaí.
-
 ## Licença
 
 Este repositório está sob a licença MIT — veja o arquivo [LICENSE](./LICENSE).
