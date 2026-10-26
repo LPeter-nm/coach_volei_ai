@@ -127,14 +127,17 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     if len(mensagem_texto) > MAX_CARACTERES:
         mensagem_texto = mensagem_texto[:MAX_CARACTERES]
 
-    # remoteJid vem como "5511999999999@s.whatsapp.net" - pegamos so'
-    # o numero, que e' o que a Evolution API espera de volta pra enviar.
-    remote_jid = data.get("key", {}).get("remoteJid", "")
+    # O WhatsApp as vezes manda um "@lid" (Linked ID, um identificador
+    # interno de privacidade) no lugar do numero de telefone real no
+    # remoteJid. Quando isso acontece, geralmente vem junto um campo
+    # "remoteJidAlt" com o numero de verdade - damos preferencia a ele.
+    chave = data.get("key", {})
+    remote_jid = chave.get("remoteJidAlt") or chave.get("remoteJid", "")
     numero = remote_jid.split("@")[0]
 
     # Log temporario de debug: mostra o numero exato que chegou e a lista
     # configurada, lado a lado, pra confirmar se o formato bate.
-    print(f"[filtro numero] recebido={numero!r} permitidos={ALLOWED_NUMBERS!r}", flush=True)
+    print(f"[filtro numero] recebido={numero!r} remoteJid_original={chave.get('remoteJid')!r} permitidos={ALLOWED_NUMBERS!r}", flush=True)
 
     # Se a lista estiver preenchida, so' deixa passar quem esta' nela.
     # Isso roda ANTES de gastar qualquer chamada na API da Gemini.
