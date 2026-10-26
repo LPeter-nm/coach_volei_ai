@@ -4,6 +4,7 @@ HTTP. Esta e' a camada que o Render hospeda, e que a Evolution API
 chama quando uma mensagem chega no WhatsApp.
 """
 
+import asyncio
 import os
 
 import httpx
@@ -11,6 +12,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header, Request
 from pydantic import BaseModel
 from google import genai
+from supabase import create_client, Client
 
 from persona import SYSTEM_PROMPT
 
@@ -30,11 +32,48 @@ EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE")     # nome da instancia no 
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY")        # apikey pra ENVIAR mensagens
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")               # token que so' nos e a Evolution conhecemos
 
-# Guarda, pra cada numero de telefone, o id da ultima resposta da IA.
-# Isso mantem o contexto da conversa por pessoa. E' em memoria (RAM):
-# some se o servidor reiniciar. Quando chegar a vez do Supabase, isso
-# vira persistente.
-conversas_por_numero: dict[str, str] = {}
+# --- Persistencia do historico de conversa (Supabase) ---
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # a service_role key, nao a anon/public
+
+supabase: Client | None = None
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Modo degradado: se o Supabase nao estiver configurado (ex: rodando local
+# so' pra testar), caimos de volta pra memoria (RAM) - funciona, mas some
+# se o processo reiniciar. Com Supabase configurado, isso nao e' usado.
+_conversas_em_memoria: dict[str, str] = {}
+
+
+def buscar_interaction_id(numero: str) -> str | None:
+    """Busca o id da ultima resposta da IA pra esse numero, no Supabase
+    (se configurado) ou na memoria (modo degradado)."""
+    if not supabase:
+        return _conversas_em_memoria.get(numero)
+
+    resultado = (
+        supabase.table("conversas")
+        .select("interaction_id")
+        .eq("numero", numero)
+        .limit(1)
+        .execute()
+    )
+    if resultado.data:
+        return resultado.data[0]["interaction_id"]
+    return None
+
+
+def salvar_interaction_id(numero: str, interaction_id: str) -> None:
+    """Grava/atualiza o id da ultima resposta da IA pra esse numero."""
+    if not supabase:
+        _conversas_em_memoria[numero] = interaction_id
+        return
+
+    # upsert = "atualiza se o numero ja' existir, cria se nao existir"
+    supabase.table("conversas").upsert(
+        {"numero": numero, "interaction_id": interaction_id}
+    ).execute()
 
 # Lista opcional de numeros autorizados a falar com o bot, separados por
 # virgula no .env (ex: "5586999990000,5586988880000"). Se ficar vazia,
@@ -170,7 +209,10 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     if ALLOWED_NUMBERS and numero not in ALLOWED_NUMBERS:
         return {"status": "ignorado", "motivo": "numero fora da lista permitida"}
 
-    previous_id = conversas_por_numero.get(numero)
+    # O cliente do Supabase e' sincrono (bloqueante); como estamos numa
+    # funcao async, rodamos ele numa thread separada pra nao travar o
+    # servidor inteiro enquanto espera o banco responder.
+    previous_id = await asyncio.to_thread(buscar_interaction_id, numero)
 
     # Monta o conteudo que vai pra IA: texto puro (caso mais comum), ou
     # uma lista com texto + midia (imagem/audio), dependendo do que chegou.
@@ -200,7 +242,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     except Exception:
         return {"status": "erro", "motivo": "falha ao consultar a IA"}
 
-    conversas_por_numero[numero] = interaction_id
+    await asyncio.to_thread(salvar_interaction_id, numero, interaction_id)
 
     # Agora enviamos a resposta de volta, chamando a propria Evolution
     # API - diferente do /chat, aqui ninguem fica esperando a resposta
