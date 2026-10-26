@@ -27,6 +27,8 @@ Supabase (banco da Evolution API)
   - `/webhook` — recebe mensagens da Evolution API e responde no WhatsApp.
   - `/health` — checagem simples de que o serviço está no ar.
 - `requirements.txt` — dependências Python do projeto.
+- `supabase_setup.sql` — script pra rodar uma vez no SQL Editor do
+  Supabase, criando a tabela que guarda o histórico de conversas.
 - `.env.example` — modelo das variáveis de ambiente necessárias.
 - `.gitignore` — mantém `.env` e `venv/` fora do repositório.
 - `ativar-venv.bat` — ativa (criando se preciso) o ambiente virtual no Windows.
@@ -60,6 +62,8 @@ Supabase (banco da Evolution API)
 | `EVOLUTION_API_KEY` | Só pro `/webhook` | Apikey da instância, pra enviar mensagens |
 | `WEBHOOK_SECRET` | Só pro `/webhook` | Token que valida que a chamada veio da Evolution API |
 | `ALLOWED_NUMBERS` | Opcional | Lista de números (separados por vírgula) autorizados a falar com o bot; vazio = libera todo mundo |
+| `SUPABASE_URL` | Opcional | URL do projeto Supabase, pra persistir o histórico de conversa |
+| `SUPABASE_KEY` | Opcional | Service role key do Supabase (não a `anon`); vazio = histórico fica só em memória |
 
 ## Deploy (produção de teste)
 
@@ -94,15 +98,14 @@ Supabase (banco da Evolution API)
 
 ## Limitações conhecidas (é um teste, não o Contaí final)
 
-- O histórico de conversa (`conversas_por_numero` em `main.py`) vive em
-  memória — some se o backend reiniciar. No Contaí de verdade, isso
-  precisa ser persistido (ex: no próprio Supabase).
+- O histórico de conversa é persistido no Supabase (tabela `conversas`,
+  ver `supabase_setup.sql`) quando `SUPABASE_URL`/`SUPABASE_KEY` estão
+  configurados; sem eles, cai em memória (some se o backend reiniciar).
 - Plano gratuito do Render "dorme" após inatividade; a primeira mensagem
   depois disso demora mais pra responder.
 
 ## Próximos passos
 
-- Persistir o histórico de conversas no Supabase.
 - Repetir esse mesmo roteiro, já com o tema e a persona reais do Contaí.
 
 ## Licença
