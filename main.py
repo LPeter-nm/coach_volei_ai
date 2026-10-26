@@ -129,10 +129,11 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
 
     # O WhatsApp as vezes manda um "@lid" (Linked ID, um identificador
     # interno de privacidade) no lugar do numero de telefone real no
-    # remoteJid. Quando isso acontece, geralmente vem junto um campo
-    # "remoteJidAlt" com o numero de verdade - damos preferencia a ele.
+    # remoteJid. Quando isso acontece, o numero de verdade costuma vir
+    # em outro campo - "senderPn" ou "remoteJidAlt", dependendo da
+    # versao da API. Tentamos nessa ordem de prioridade.
     chave = data.get("key", {})
-    remote_jid = chave.get("remoteJidAlt") or chave.get("remoteJid", "")
+    remote_jid = chave.get("senderPn") or chave.get("remoteJidAlt") or chave.get("remoteJid", "")
     numero = remote_jid.split("@")[0]
 
     # Log temporario de debug: mostra o numero exato que chegou e a lista
