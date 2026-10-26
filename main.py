@@ -170,6 +170,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
         return {"status": "ignorado", "motivo": "evento nao tratado"}
 
     data = body.get("data", {})
+    print(f"Dados: {data}")
 
     # fromMe = True significa que fomos NOS que mandamos essa mensagem
     # (ex: voce mesmo testando pelo celular). Se processarmos isso, a
@@ -203,6 +204,7 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     # Log temporario de debug: mostra o numero exato que chegou e a lista
     # configurada, lado a lado, pra confirmar se o formato bate.
     print(f"[filtro numero] recebido={numero!r} remoteJid_original={chave.get('remoteJid')!r} permitidos={ALLOWED_NUMBERS!r}", flush=True)
+    
 
     # Se a lista estiver preenchida, so' deixa passar quem esta' nela.
     # Isso roda ANTES de gastar qualquer chamada na API da Gemini.
@@ -259,7 +261,6 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
         # se a Evolution API aceitou o envio (2xx) ou recusou (4xx/5xx) e
         # por qual motivo, em vez de ficar as cegas.
         print(f"[envio Evolution] status={resposta_envio.status_code} resposta={resposta_envio.text}", flush=True)
-        print(f"\n{resposta_envio}", flush=True)
     except Exception as e:
         print(f"[envio Evolution] falhou ao chamar a URL: {e}", flush=True)
 
