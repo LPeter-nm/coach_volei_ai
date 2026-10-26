@@ -132,6 +132,10 @@ async def webhook(request: Request, authorization: str | None = Header(default=N
     remote_jid = data.get("key", {}).get("remoteJid", "")
     numero = remote_jid.split("@")[0]
 
+    # Log temporario de debug: mostra o numero exato que chegou e a lista
+    # configurada, lado a lado, pra confirmar se o formato bate.
+    print(f"[filtro numero] recebido={numero!r} permitidos={ALLOWED_NUMBERS!r}", flush=True)
+
     # Se a lista estiver preenchida, so' deixa passar quem esta' nela.
     # Isso roda ANTES de gastar qualquer chamada na API da Gemini.
     if ALLOWED_NUMBERS and numero not in ALLOWED_NUMBERS:
