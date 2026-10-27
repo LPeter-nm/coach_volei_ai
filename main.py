@@ -23,7 +23,7 @@ if not API_KEY:
     raise RuntimeError("GEMINI_API_KEY nao definida. Configure o .env.")
 
 client = genai.Client(api_key=API_KEY)
-MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-3.8-flash"
 MAX_CARACTERES = 500
 
 # --- Configuracao especifica da Evolution API (so' usada pelo /webhook) ---
